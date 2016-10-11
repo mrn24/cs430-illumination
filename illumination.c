@@ -20,6 +20,7 @@ typedef struct {
   double* position;
   double* normal;
   double* direction;
+  double radialA0;
   double radialA1;
   double radialA2;
   double angularA0;

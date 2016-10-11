@@ -14,11 +14,17 @@ typedef struct Image{
 }Image;
 
 typedef struct {
-  int type;//1 - sphere, 2 - plane.
+  int type;//1 - sphere, 2 - plane 3 - light
   double* color;
   double radius;
   double* position;
   double* normal;
+  double* direction;
+  double radialA1;
+  double radialA2;
+  double angularA0;
+  double* diffuse;
+  double* specular;
 }Shape;
 
 Shape shapes[180];
@@ -286,6 +292,8 @@ void read_scene(char* filename) {
 	shapes[oCount].type = 1;
       } else if (strcmp(value, "plane") == 0) {
 	shapes[oCount].type = 2;
+      } else if (strcmp(value, "light") == 0){
+	shapes[oCount].type = 3;
       } else {
 	fprintf(stderr, "Error: Unknown type, \"%s\", on line number %d.\n", value, line);
 	exit(1);
@@ -321,6 +329,20 @@ void read_scene(char* filename) {
 	  }else if (strcmp(key, "normal") == 0){
 	    shapes[oCount].normal = next_vector(json);
 	    shapes[oCount].normal[1] = -1*shapes[oCount].normal[1];
+	  }else if (strcmp(key, "direction") == 0){
+	    shapes[oCount].direction = next_vector(json);
+	  }else if (strcmp(key, "radial-a2") == 0){
+	    shapes[oCount].radialA2 = next_number(json);
+	  }else if (strcmp(key, "radial-a1") == 0){
+	    shapes[oCount].radialA1 = next_number(json); 
+	  }else if (strcmp(key, "radial-a0") == 0){
+	    shapes[oCount].radialA0 = next_number(json);
+	  }else if (strcmp(key, "angular-a0") == 0){
+	    shapes[oCount].angularA0 = next_number(json);
+	  }else if (strcmp(key, "diffuse_color") == 0){
+	    shapes[oCount].diffuse = next_vector(json);
+	  }else if (strcmp(key, "specular_color") == 0){
+	    shapes[oCount].specular = next_vector(json);
 	  }else{
 	    fprintf(stderr, "Error: Unknown property, \"%s\", on line %d\n",
 		    key, line);

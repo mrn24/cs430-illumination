@@ -20,9 +20,9 @@ typedef struct {
   double* position;
   double* normal;
   double* direction;
-  double radialA0;
-  double radialA1;
-  double radialA2;
+  double radialA0;//default 0
+  double radialA1;//default 0
+  double radialA2;//default 1
   double angularA0;
   double* diffuse;
   double* specular;
@@ -46,9 +46,6 @@ int write_p6(char* input){
   fprintf(fp, "#This document was converted from json to P6 by my converter\n", image.format);
   fprintf(fp, "%d %d\n%d\n", image.width, image.height, image.range);
   fwrite(image.buffer, sizeof(RGBpixel), image.height * image.width, fp);
-  /*for(int i = 0; i<image.count; i++){
-    fwrite(fp, "%d%d%d", image.buffer[i].r, image.buffer[i].g, image.buffer[i].b);
-    }*/
   fclose(fp);
   return 0;
 }
@@ -61,6 +58,15 @@ double quadratic(double a, double b, double c){
    if(t0<0) return t1;
    if(t0<t1) return t0;
    return -1;
+}
+
+double sphere_intersection(double x_pos, double y_pos, double z_pos, int k){
+  double a, b, c;
+  a=pow(x_pos, 2)+pow(y_pos, 2)+pow(z_pos, 2);
+  b=2 * (x_pos * (0-shapes[k].position[0]) + y_pos * (0-shapes[k].position[1]) + z_pos * (0-shapes[k].position[2]));
+  c=(pow(0-shapes[k].position[0], 2) + pow(0-shapes[k].position[1], 2) + pow(0-shapes[k].position[2], 2)-pow(shapes[k].radius, 2));
+
+  return quadratic(a, b, c);
 }
 
 //Plane intersection formula as well as setting up the variables.
@@ -83,6 +89,36 @@ double plane_intersection(double x_pos, double y_pos, double z_pos, int k){
   return t;
 }
 
+int shader(int k, double x_pos, double y_pos, double z_pos, double t_min){
+  double rOn_x, rOn_y, rOn_z, rDn_x, rDn_y, rDn_z;
+  
+  for(int y = 0; y< height; y+= 1){
+    for(int x = 0; x < width; x+=1){
+      
+
+    }
+  }
+  double* color = malloc(sizeof(double)*3);
+  color[0] = 0;//ambient_color[0]
+  color[1] = 0;//ambient_color[1]
+  color[2] = 0;//ambient_color[2]
+
+  for(int j=0, shapes[j] != NULL; j+=1){
+    if(shapes[j].type != 3){
+      printf("Only looking for lights");
+    }else{
+      rOn_x = min_t * x_pos;
+      rOn_y = min_t * y_pos;
+      rOn_z = min_t * z_pos;
+
+      rDn_x = shapes[j].position[0] - rOn_x;
+      rDn_y = shapes[j].position[1] - rOn_y;
+      rDn_z = shapes[j].position[2] - rOn_z;
+    
+
+  }
+
+}
 
 int caster(){
   //Instantiate the image object, and the buffer inside of it.
@@ -111,20 +147,23 @@ int caster(){
       for(k=0; k<oCount; k++){
 	//If its a sphere, sphere intersection formula
 	if(shapes[k].type == 1){	  
-	  a=pow(x_pos, 2)+pow(y_pos, 2)+pow(z_pos, 2);
-	  b=2 * (x_pos * (0-shapes[k].position[0]) + y_pos * (0-shapes[k].position[1]) + z_pos * (0-shapes[k].position[2]));
-	  c=(pow(0-shapes[k].position[0], 2) + pow(0-shapes[k].position[1], 2) + pow(0-shapes[k].position[2], 2)-pow(shapes[k].radius, 2));
+	 
 	  //Get some help with quadratic functions
-	  t=quadratic(a, b, c);
+	  t=sphere_intersection(x_pos, y_pos, z_pos, k);
 	  //If t is positive and closer than t_min, lets paint.
 	  if(t>0){
 	    if(t_min == -1 || t<t_min){
 	      t_min = t;
 	      //Take the double value. Mult by max color value(255)
 	      //Cast to unsigned character. (u_char) number
+
+	      shading(k, x_pos, y_pos, z_pos, t_min);
+
+	      /*
 	      image.buffer[i*width+j].r=(int)(shapes[k].color[0]*image.range);
 	      image.buffer[i*width+j].g=(int)(shapes[k].color[1]*image.range);
 	      image.buffer[i*width+j].b=(int)(shapes[k].color[2]*image.range);
+	      */
 	    }
 	  }
 	  //If its a plane..
@@ -142,6 +181,8 @@ int caster(){
 	      image.buffer[i*width+j].b=(int)(shapes[k].color[2]*image.range);
 	    }
 	  }
+	}else if(shapes[k].type == "light"){
+	  printf("light\n");
 	}else{
 	  fprintf(stderr, "I'm not sure what shape that is!");
 	}
@@ -266,6 +307,7 @@ void read_scene(char* filename) {
   while (1) {
     c = fgetc(json);
     if (c == ']') {
+      shapes[oCount+1] = NULL;
       fclose(json);
       return;
     }
@@ -382,5 +424,6 @@ int main(int argc, char** argv) {
   read_scene(argv[3]);
   caster();
   write_p6(argv[4]);
+  free(image.buffer);
   return 0;
 }

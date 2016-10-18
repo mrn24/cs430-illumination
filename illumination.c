@@ -89,15 +89,13 @@ double plane_intersection(double x_pos, double y_pos, double z_pos, int k){
   return t;
 }
 
-int shader(int k, double x_pos, double y_pos, double z_pos, double t_min){
-  double rOn_x, rOn_y, rOn_z, rDn_x, rDn_y, rDn_z;
-  
-  for(int y = 0; y< height; y+= 1){
-    for(int x = 0; x < width; x+=1){
-      
+double distance(double x, double y, double z){
+  return sqrt(pow(x, 2)+pow(y, 2)+pow(z, 2));
+}
 
-    }
-  }
+int shader(int k, double x_pos, double y_pos, double z_pos, double t_min){
+  double rOn_x, rOn_y, rOn_z, rDn_x, rDn_y, rDn_z, light_d, t, min_t;
+  
   double* color = malloc(sizeof(double)*3);
   color[0] = 0;//ambient_color[0]
   color[1] = 0;//ambient_color[1]
@@ -114,12 +112,66 @@ int shader(int k, double x_pos, double y_pos, double z_pos, double t_min){
       rDn_x = shapes[j].position[0] - rOn_x;
       rDn_y = shapes[j].position[1] - rOn_y;
       rDn_z = shapes[j].position[2] - rOn_z;
-    
 
+      light_d = distance(rDn_x, rDn_y, rDn_z);
+
+      mag = sqrt(pow(rDn_x, 2)+pow(rDn_y, 2)+pow(rDn_z, 2));
+      rDn_x = rDn_x/mag;
+      rDn_y = rDn_y/mag;
+      rDn_z = rDn_z/mag;
+
+      min_t = light_d;
+
+      for(int i=0; shapes[i] != NULL; i+=1){
+	if(i == k) continue;
+	
+	if(shapes[i].type == 1){	  
+	  
+	  //Get some help with quadratic functions
+	  t=sphere_intersection(rDn_x, rDn_y, rDn_z,  i);
+	  //If t is positive and closer than t_min, lets paint.
+	  if(t>0){
+	    if(t_min == -1 || t<t_min){
+	      t_min = t;
+	      //Take the double value. Mult by max color value(255)
+	      //Cast to unsigned character. (u_char) number
+	      
+	      /*
+		image.buffer[i*width+j].r=(int)(shapes[k].color[0]*image.range);
+		image.buffer[i*width+j].g=(int)(shapes[k].color[1]*image.range);
+		image.buffer[i*width+j].b=(int)(shapes[k].color[2]*image.range);
+	      */
+	    }
+	  }
+	  //If its a plane..
+	}else if(shapes[i].type == 2){
+	  //Send pertinent to helper function and get the t-value
+	  t = plane_intersection(rDn_x, rDn_y, rDn_z,  i);
+	  //If t is positive and closer than t_min, lets paint.
+	  if(t>0){
+	    if(t_min == -1 || t<t_min){ 
+	      t_min = t;
+	      //Take the double value. Mult by max color value(255)
+	      //Cast to unsigned character. (u_char) number
+
+	      /*
+	      image.buffer[i*width+j].r=(int)(shapes[k].color[0]*image.range);
+	      image.buffer[i*width+j].g=(int)(shapes[k].color[1]*image.range);
+	      image.buffer[i*width+j].b=(int)(shapes[k].color[2]*image.range);
+	      */
+	    }
+	  }
+	}else if(shapes[i].type == "light"){
+	  printf("light\n");
+	}else{
+	  fprintf(stderr, "I'm not sure what shape that is!");
+	}
+	//Check for t, if its less than distance to light
+	//Mark for shadow
+      } 
+    }   
   }
-
 }
-
 int caster(){
   //Instantiate the image object, and the buffer inside of it.
   image.buffer = malloc(sizeof(RGBpixel)*width*height);
@@ -146,7 +198,7 @@ int caster(){
       //Loop through all objects
       for(k=0; k<oCount; k++){
 	//If its a sphere, sphere intersection formula
-	if(shapes[k].type == 1){	  
+ 	if(shapes[k].type == 1){	  
 	 
 	  //Get some help with quadratic functions
 	  t=sphere_intersection(x_pos, y_pos, z_pos, k);
@@ -172,7 +224,7 @@ int caster(){
 	  t = plane_intersection(x_pos, y_pos, z_pos, k);
 	  //If t is positive and closer than t_min, lets paint.
 	  if(t>0){
-	    if(t_min == -1 || t<t_min){
+	    if(t_min == -1 || t<t_min){ 
 	      t_min = t;
 	      //Take the double value. Mult by max color value(255)
 	      //Cast to unsigned character. (u_char) number

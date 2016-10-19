@@ -72,6 +72,8 @@ static inline void normalize(double* v){
   v[3] /= len;
 }
 
+
+
 //run the variables through the quadratic formula and checks the t values.
 double quadratic(double a, double b, double c){
    double t0 = (-b-sqrt((pow(b, 2))-4*a*c))/2*a;
@@ -96,7 +98,7 @@ double sphere_intersection(double* Rd, int k){
 double plane_intersection(double* Rd, int k){
   double d, t;
   double* nPos;
-
+  
   nPos = shapes[k].normal;
   normalize(nPos);
   
@@ -106,6 +108,12 @@ double plane_intersection(double* Rd, int k){
   }	    
   t = -d/(nPos[0]*Rd[0] + nPos[1]*Rd[1] + nPos[2]*Rd[2]);
   return t;
+}
+
+double frad(int k, double d){
+  //inputs distance to light
+  ///if distance is infinity, return 1, else return 1/(a2*dl^2 + a1*dl + a0)
+  return 1/(shapes[k].radialA2 * sqr(d) + shapes[k].radialA1 * d + shapes[k].radialA0);
 }
 
 int shader(int k, double* Rd, double t){
@@ -180,7 +188,7 @@ int shader(int k, double* Rd, double t){
 	  L = rDn;
 	  //R = Reflection
 	  V = Rd;
-	  //Add to color, frad() * fang() * (vadd(shapes[k].diffuse + shapes[k].specular))
+	  //Add to color, frad(k, light_d) * fang() * (vadd(shapes[k].diffuse + shapes[k].specular))
 	}else if(t_min < light_d){
 	  //Intersection is closer than light
 	  continue;

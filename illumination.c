@@ -72,7 +72,9 @@ static inline void normalize(double* v){
   v[3] /= len;
 }
 
-
+static inline double dot(double* v, double* b){
+  return (v[0]*b[0] + v[1]*b[1] + v[2]*b[2]);
+}
 
 //run the variables through the quadratic formula and checks the t values.
 double quadratic(double a, double b, double c){
@@ -113,12 +115,22 @@ double plane_intersection(double* Rd, int k){
 double frad(int k, double d){
   //inputs distance to light
   ///if distance is infinity, return 1, else return 1/(a2*dl^2 + a1*dl + a0)
+  if(shapes[k].radialA0 == NULL || shapes[k].radialA0 == 0) shapes[k].radialA0 = 1;
+  if(shapes[k].radialA1 == NULL) shapes[k].radialA1 = 0;
+  if(shapes[k].radialA2 == NULL) shapes[k].radialA2 = 0;
+  
   return 1/(shapes[k].radialA2 * sqr(d) + shapes[k].radialA1 * d + shapes[k].radialA0);
 }
 
+double fang(double* rDn, int j){
+  //1 if not spotlight(theta = 0 or no direction)
+  //0 if rLt dot shapes[k].direction = cos(alpha) and is less than cos(theta)
+  //else rLt dot shapes[k].direction^a0
+}
+
 int shader(int k, double* Rd, double t){
-  double light_d, t_min, illum;
-  double* rDn, rOn;
+  double light_d, t_min, illum, alpha;
+  double* rDn, rOn, diff, spec;
   
   double* color = malloc(sizeof(double)*3);
   color[0] = 0;//ambient_color[0]
@@ -172,10 +184,9 @@ int shader(int k, double* Rd, double t){
 	  fprintf(stderr, "I'm not sure what shape that is!");
 	}
 	if(t_min == light_d){
-	  //Calculate and update illum with--
-	  ///Diffuse color
+	  //Calculate and update color
 	  double* N, L, R, V;
-	  //k = intersecting object, i = light object
+	  //k = intersecting object, j = light object
 	  if(shapes[k].type == 1){
 	    //Sphere
 	    N = rOn - shapes[k].position;
@@ -186,9 +197,40 @@ int shader(int k, double* Rd, double t){
 	    printf("What object am I hitting again?\,");
 	  }
 	  L = rDn;
-	  //R = Reflection
+	  R = {rDn[0] * -1,
+	       rDn[1] * -1,
+	       rDn[2] * -1};
 	  V = Rd;
-	  //Add to color, frad(k, light_d) * fang() * (vadd(shapes[k].diffuse + shapes[k].specular))
+	  alpha = dot(N, L);
+	  if(shapes[k].diffuse == NULL || alpha < 0){
+	    diff = {0, 0, 0};
+	  }else{
+	    diff = {shapes[k].diffuse[0] * shapes[j].color[0] * alpha,
+		    shapes[k].diffuse[1] * shapes[j].color[1] * alpha,
+		    shapes[k].diffuse[2] * shapes[j].color[2] * alpha};
+	  }
+	  
+	  alpha = dot(V, R);
+	  if(shapes[k].specular == NULL || alpha < 0){
+	    spec = {0, 0, 0};
+	  }else{
+	    alpha = pow(alpha, 20);
+	    spec = {shapes[k].diffuse[0] * shapes[j].color[0] * alpha,
+		    shapes[k].diffuse[1] * shapes[j].color[1] * alpha,
+		    shapes[k].diffuse[2] * shapes[j].color[2] * alpha};
+	  }
+		    
+	  /*
+	  if(shapes[k].diffuse != NULL && shapes[k].specular != NULL){
+	    diff_plus_spec = vadd(shapes[k].diffuse + shapes[k].specular);
+	  }else if(shapes[k].diffuse != NULL){
+	    diff_plus_spec = shapes[k].specular;
+	  }else{
+	    diff_plus_spec = shapes[k].diffuse;
+	  }
+	  */
+	  
+	  //Add to color, frad(j, light_d) * fang() * (vadd(shapes[k].diffuse + shapes[k].specular))
 	}else if(t_min < light_d){
 	  //Intersection is closer than light
 	  continue;

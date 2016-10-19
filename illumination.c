@@ -3,6 +3,7 @@
 #include <string.h>
 #include <math.h>
 
+#define PI 3.14159265
 
 typedef struct RGBpixel {
   unsigned char r, g, b;
@@ -126,10 +127,19 @@ double fang(double* rDn, int j){
   //1 if not spotlight(theta = 0 or no direction)
   //0 if rLt dot shapes[k].direction = cos(alpha) and is less than cos(theta)
   //else rLt dot shapes[k].direction^a0
+  if(shapes[j].direction == NULL || shapes[j].theta == NULL || shapes[j].theta == 0){
+    return 1;
+  }
+  double v = dot(rDn, shapes[j].direction);
+  if(v < cos(theta)){
+    return 0;
+  }else{
+    return pow(v, shapes[j].angularA0);
+  }
 }
 
-int shader(int k, double* Rd, double t){
-  double light_d, t_min, illum, alpha;
+int shader(int l, int m, int k, double* Rd, double t){
+  double light_d, t_min, illum, alpha, fRad, fAng;
   double* rDn, rOn, diff, spec;
   
   double* color = malloc(sizeof(double)*3);
@@ -219,7 +229,8 @@ int shader(int k, double* Rd, double t){
 		    shapes[k].diffuse[1] * shapes[j].color[1] * alpha,
 		    shapes[k].diffuse[2] * shapes[j].color[2] * alpha};
 	  }
-		    
+
+	  
 	  /*
 	  if(shapes[k].diffuse != NULL && shapes[k].specular != NULL){
 	    diff_plus_spec = vadd(shapes[k].diffuse + shapes[k].specular);
@@ -229,19 +240,25 @@ int shader(int k, double* Rd, double t){
 	    diff_plus_spec = shapes[k].diffuse;
 	  }
 	  */
+	  fRad = frad(j, light_d);
+	  fAng = fang(rDn, j);
 	  
-	  //Add to color, frad(j, light_d) * fang() * (vadd(shapes[k].diffuse + shapes[k].specular))
+	  //Add to color, frad(j, light_d) * fang(rDn, j) * (vadd(shapes[k].diffuse + shapes[k].specular))
+	  color[0] += fRad * fAng * (spec[0] + diff[0]);
+	  color[1] += fRad * fAng * (spec[1] + diff[1]);
+	  color[2] += fRad * fAng * (spec[2] + diff[2]);
 	}else if(t_min < light_d){
 	  //Intersection is closer than light
 	  continue;
 	}else{
 	  printf("Not sure what happened\n");
 	}
-	//Check for t, if its less than distance to light
-	//Mark for shadow
       } 
     }   
   }
+  image.buffer[l*width+m].r=(int)(color[0]*image.range);
+  image.buffer[l*width+m].g=(int)(color[1]*image.range);
+  image.buffer[l*width+m].b=(int)(color[2]*image.range);
 }
 
 
@@ -280,7 +297,7 @@ int caster(){
 	      //Take the double value. Mult by max color value(255)
 	      //Cast to unsigned character. (u_char) number
 
-	      shading(k, Rd, t_min);
+	      shading(i, j, k, Rd, t_min);
 
 	      /*
 	      image.buffer[i*width+j].r=(int)(shapes[k].color[0]*image.range);
@@ -299,9 +316,7 @@ int caster(){
 	      t_min = t;
 	      //Take the double value. Mult by max color value(255)
 	      //Cast to unsigned character. (u_char) number
-	      image.buffer[i*width+j].r=(int)(shapes[k].color[0]*image.range);
-	      image.buffer[i*width+j].g=(int)(shapes[k].color[1]*image.range);
-	      image.buffer[i*width+j].b=(int)(shapes[k].color[2]*image.range);
+	      shading(i, j, k, Rd, t_min);
 	    }
 	  }
 	}else if(shapes[k].type == "light"){

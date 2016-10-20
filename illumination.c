@@ -52,12 +52,6 @@ int write_p6(char* input){
   return 0;
 }
 
-static inline double* vadd(double* v, double* b){
-  return {v[0] + b[0],
-      v[1] + b[1],
-      v[2] + b[2]};
-}
-
 static inline double sqr(double v){
   return v*v;
 }
@@ -70,11 +64,41 @@ static inline void normalize(double* v){
   double len = sqrt(sqr(v[0]) + sqr(v[1]) + sqr(v[2]));
   v[0] /= len;
   v[1] /= len;
-  v[3] /= len;
+  v[2] /= len;
 }
 
 static inline double dot(double* v, double* b){
   return (v[0]*b[0] + v[1]*b[1] + v[2]*b[2]);
+}
+
+
+//k - intersecting object
+//j - light
+
+void diffuse_color(double* v, int k, int j, double alpha){
+  //printf("Light color - [%f, %f, %f], Shape color - [%f, %f, %f]\n", shapes[j].color[0], shapes[j].color[1], shapes[j].color[2], shapes[k].diffuse[0], shapes[k].diffuse[1], shapes[k].diffuse[2]);
+  if(alpha <= 0 || shapes[k].diffuse == NULL){
+    v[0] = 0;
+    v[1] = 0;
+    v[2] = 0;
+  }else{
+    v[0] = shapes[k].diffuse[0] * shapes[j].color[0] * alpha;
+    v[1] = shapes[k].diffuse[1] * shapes[j].color[1] * alpha;
+    v[2] = shapes[k].diffuse[2] * shapes[j].color[2] * alpha;
+  }
+}
+
+void specular_color(double* v, int k, int j, double alpha){
+  if(alpha <= 0 || shapes[k].specular == NULL){
+    v[0] = 0;
+    v[1] = 0;
+    v[2] = 0;
+  }else{
+    alpha = pow(alpha, 20);
+    v[0] = shapes[k].specular[0] * shapes[j].color[0] * alpha;
+    v[1] = shapes[k].specular[1] * shapes[j].color[1] * alpha;
+    v[2] = shapes[k].specular[2] * shapes[j].color[2] * alpha;
+  }
 }
 
 //run the variables through the quadratic formula and checks the t values.
@@ -116,22 +140,18 @@ double plane_intersection(double* Rd, int k){
 double frad(int k, double d){
   //inputs distance to light
   ///if distance is infinity, return 1, else return 1/(a2*dl^2 + a1*dl + a0)
-  if(shapes[k].radialA0 == NULL || shapes[k].radialA0 == 0) shapes[k].radialA0 = 1;
-  if(shapes[k].radialA1 == NULL) shapes[k].radialA1 = 0;
-  if(shapes[k].radialA2 == NULL) shapes[k].radialA2 = 0;
-  
   return 1/(shapes[k].radialA2 * sqr(d) + shapes[k].radialA1 * d + shapes[k].radialA0);
 }
 
 double fang(double* rDn, int j){
-  //1 if not spotlight(theta = 0 or no direction)
+  //1 if not spotlight(theta = 0r no direction)
   //0 if rLt dot shapes[k].direction = cos(alpha) and is less than cos(theta)
   //else rLt dot shapes[k].direction^a0
-  if(shapes[j].direction == NULL || shapes[j].theta == NULL || shapes[j].theta == 0){
+  if(shapes[j].theta == 0){
     return 1;
   }
   double v = dot(rDn, shapes[j].direction);
-  if(v < cos(theta)){
+  if(v < cos(shapes[j].theta)){
     return 0;
   }else{
     return pow(v, shapes[j].angularA0);
@@ -139,26 +159,28 @@ double fang(double* rDn, int j){
 }
 
 int shader(int l, int m, int k, double* Rd, double t){
-  double light_d, t_min, illum, alpha, fRad, fAng;
-  double* rDn, rOn, diff, spec;
+  double light_d, t_min, alpha, fRad, fAng;
+  int i, j;
   
   double* color = malloc(sizeof(double)*3);
   color[0] = 0;//ambient_color[0]
   color[1] = 0;//ambient_color[1]
   color[2] = 0;//ambient_color[2]
 
-  for(int j=0, shapes[j] != NULL; j+=1){
+  for(j=0; j<oCount; j++){
     if(shapes[j].type != 3){
       //Only looking for lights
       continue;
     }else{
-      rOn {t * Rd[0],
-	  t * Rd[1],
-	  t * Rd[2]};
+      double rOn [3];
+      rOn[0] = t * Rd[0];
+      rOn[1] = t * Rd[1];
+      rOn[2] = t * Rd[2];
 
-      rDn = {shapes[j].position[0] - rOn[0],
-	     shapes[j].position[1] - rOn[1],
-	     shapes[j].position[2] - rOn[2]};
+      double rDn [3];
+      rDn[0] = shapes[j].position[0] - rOn[0];
+      rDn[1] = shapes[j].position[1] - rOn[1];
+      rDn[2] = shapes[j].position[2] - rOn[2];
 
       light_d = distance(rDn);
 
@@ -166,7 +188,7 @@ int shader(int l, int m, int k, double* Rd, double t){
 
       t_min = light_d;
 
-      for(int i=0; shapes[i] != NULL; i+=1){
+      for(i=0; i<oCount; i++){
 	if(i == k) continue;
 	
 	if(shapes[i].type == 1){	  
@@ -188,47 +210,69 @@ int shader(int l, int m, int k, double* Rd, double t){
 	      t_min = t;
 	    }
 	  }
-	}else if(shapes[i].type == "light"){
-	  printf("light\n");
+	}else if(shapes[i].type == 3){
+	  
 	}else{
 	  fprintf(stderr, "I'm not sure what shape that is!");
 	}
-	if(t_min == light_d){
+	if(abs(t_min - light_d) < 0.00000000001){
 	  //Calculate and update color
-	  double* N, L, R, V;
 	  //k = intersecting object, j = light object
+	  double N[3];
 	  if(shapes[k].type == 1){
 	    //Sphere
-	    N = rOn - shapes[k].position;
+	    N[0] = rOn[0] - shapes[k].position[0];
+	    N[1] = rOn[1] - shapes[k].position[1];
+	    N[2] = rOn[2] - shapes[k].position[2];
 	  }else if(shapes[k].type == 2){
 	    //Plane
-	    N = shapes[k].normal;
+	    N[0] = shapes[k].normal[0];
+	    N[1] = shapes[k].normal[1];
+	    N[2] = shapes[k].normal[2];
+	    
 	  }else{
-	    printf("What object am I hitting again?\,");
+	    printf("What object am I hitting again?\n");
 	  }
-	  L = rDn;
-	  R = {rDn[0] * -1,
-	       rDn[1] * -1,
-	       rDn[2] * -1};
-	  V = Rd;
-	  alpha = dot(N, L);
-	  if(shapes[k].diffuse == NULL || alpha < 0){
-	    diff = {0, 0, 0};
-	  }else{
-	    diff = {shapes[k].diffuse[0] * shapes[j].color[0] * alpha,
-		    shapes[k].diffuse[1] * shapes[j].color[1] * alpha,
-		    shapes[k].diffuse[2] * shapes[j].color[2] * alpha};
-	  }
+	  double L[3];
+	  L[0] = rDn[0];
+	  L[1] = rDn[1];
+	  L[2] = rDn[2];
 	  
+	  double R[3];
+	  alpha = dot(rDn, N);
+	  R[0] = rDn[0] - 2 * alpha * N[0];
+	  R[1] = rDn[1] - 2 * alpha * N[1];
+	  R[2] = rDn[2] - 2 * alpha * N[2];
+	   
+	  /*
+	    r= rDn - 2(rdn dot normal)all times normal
+	  */
+	  
+	  double V[3];
+	  V[0] = Rd[0];
+	  V[1] = Rd[1];
+	  V[2] = Rd[2];
+	  
+	  alpha = dot(N, L);
+
+	  //printf("Index - %d, Alpha - %f\n", l*width+m, alpha);
+
+	  double diff[3];
+	  diff[0] = 0;
+	  diff[1] = 0;
+	  diff[2] = 0;
+	  
+	  diffuse_color(diff, k, j, alpha);
+	  	  
 	  alpha = dot(V, R);
-	  if(shapes[k].specular == NULL || alpha < 0){
-	    spec = {0, 0, 0};
-	  }else{
-	    alpha = pow(alpha, 20);
-	    spec = {shapes[k].diffuse[0] * shapes[j].color[0] * alpha,
-		    shapes[k].diffuse[1] * shapes[j].color[1] * alpha,
-		    shapes[k].diffuse[2] * shapes[j].color[2] * alpha};
-	  }
+
+	  double spec[3];
+	  spec[0] = 0;
+	  spec[1] = 0;
+	  spec[2] = 0;
+
+	  //specular_color(spec, k, j, alpha);
+	  
 
 	  
 	  /*
@@ -240,10 +284,16 @@ int shader(int l, int m, int k, double* Rd, double t){
 	    diff_plus_spec = shapes[k].diffuse;
 	  }
 	  */
-	  fRad = frad(j, light_d);
-	  fAng = fang(rDn, j);
+
+	  
+	  //fRad = frad(j, light_d);
+	  fAng = 1;
+	  fRad = 1;
+
+	  //fAng = fang(rDn, j);
 	  
 	  //Add to color, frad(j, light_d) * fang(rDn, j) * (vadd(shapes[k].diffuse + shapes[k].specular))
+	  //printf("Spec - %f, %f, %f --- Diff - %f, %f, %f\n", spec[0], spec[1], spec[2], diff[0], diff[1], diff[2]);
 	  color[0] += fRad * fAng * (spec[0] + diff[0]);
 	  color[1] += fRad * fAng * (spec[1] + diff[1]);
 	  color[2] += fRad * fAng * (spec[2] + diff[2]);
@@ -256,9 +306,9 @@ int shader(int l, int m, int k, double* Rd, double t){
       } 
     }   
   }
-  image.buffer[l*width+m].r=(int)(color[0]*image.range);
-  image.buffer[l*width+m].g=(int)(color[1]*image.range);
-  image.buffer[l*width+m].b=(int)(color[2]*image.range);
+  image.buffer[l*width+m].r=(unsigned char)(color[0]*image.range);
+  image.buffer[l*width+m].g=(unsigned char)(color[1]*image.range);
+  image.buffer[l*width+m].b=(unsigned char)(color[2]*image.range);
 }
 
 
@@ -269,18 +319,20 @@ int caster(){
   image.width = width;
   image.range = 255;
   //All of the math variables
-  double* Rd;
   double t=0;
   double t_min=-1.0;
+  int closest_object = 0;
   int i, j, k;
   //Nested for loop to iterate through all the pixels
   for (i=0;i<height;i++){
     for(j=0;j<width;j++){
       t_min = -1;
       //Pixel center
-      Rd = {0 - camerawidth/2+camerawidth/width*(j+0.5),
-	    cameraheight/2+cameraheight/height*(i+0.5),
-	    1};
+      double Rd [3];
+      Rd[0] = 0 - camerawidth/2+camerawidth/width*(j+0.5);
+      Rd[1] = 0 - cameraheight/2+cameraheight/height*(i+0.5);
+      Rd[2] = 1;
+      
       //Normalize direction vector
       normalize(Rd);
       //Loop through all objects
@@ -296,9 +348,7 @@ int caster(){
 	      t_min = t;
 	      //Take the double value. Mult by max color value(255)
 	      //Cast to unsigned character. (u_char) number
-
-	      shading(i, j, k, Rd, t_min);
-
+	      closest_object = k;
 	      /*
 	      image.buffer[i*width+j].r=(int)(shapes[k].color[0]*image.range);
 	      image.buffer[i*width+j].g=(int)(shapes[k].color[1]*image.range);
@@ -314,16 +364,20 @@ int caster(){
 	  if(t>0){
 	    if(t_min == -1 || t<t_min){ 
 	      t_min = t;
+	      closest_object = k;
 	      //Take the double value. Mult by max color value(255)
 	      //Cast to unsigned character. (u_char) number
-	      shading(i, j, k, Rd, t_min);
 	    }
 	  }
-	}else if(shapes[k].type == "light"){
-	  printf("light\n");
+	}else if(shapes[k].type == 3){
+	  
 	}else{
 	  fprintf(stderr, "I'm not sure what shape that is!");
 	}
+      }
+      printf("%d\n", k);
+      if(t_min != -1){
+	shader(i, j, closest_object, Rd, t_min);
       }
     }
   }
@@ -445,7 +499,6 @@ void read_scene(char* filename) {
   while (1) {
     c = fgetc(json);
     if (c == ']') {
-      shapes[oCount+1] = NULL;
       fclose(json);
       return;
     }
@@ -475,6 +528,7 @@ void read_scene(char* filename) {
 	shapes[oCount].type = 2;
       } else if (strcmp(value, "light") == 0){
 	shapes[oCount].type = 3;
+	shapes[oCount].angularA0 = 1;
       } else {
 	fprintf(stderr, "Error: Unknown type, \"%s\", on line number %d.\n", value, line);
 	exit(1);

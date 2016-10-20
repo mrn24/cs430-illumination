@@ -3,3 +3,4 @@ all: illumination.c
 
 clean:
 	rm -rf raycast *~
+	rm *.ppm
